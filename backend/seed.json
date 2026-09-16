@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Wireless Noise-Cancelling Headphones",
+    "price": 349.99,
+    "description": "Premium over-ear wireless headphones with active noise cancellation, 30-hour battery life, ultra-comfortable memory foam ear cushions, and Hi-Res audio support. Features Bluetooth 5.3, multipoint connection, and a fold-flat design for travel.",
+    "category": "electronics",
+    "stock": 45,
+    "image": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=600&h=600&fit=crop",
+    "rating": 4.8,
+    "numReviews": 234
+  },
+  {
+    "name": "Slim Fit Organic Cotton T-Shirt",
+    "price": 29.99,
+    "description": "Essential everyday tee crafted from 100% organic combed ring-spun cotton. Features a modern slim fit, reinforced neck seam, and pre-shrunk fabric. Available in 12 colors. Machine washable.",
+    "category": "fashion",
+    "stock": 200,
+    "image": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=600&h=600&fit=crop",
+    "rating": 4.3,
+    "numReviews": 89
+  },
+  {
+    "name": "Minimalist Leather Watch",
+    "price": 189.99,
+    "description": "A refined timepiece featuring a genuine Italian leather strap, scratch-resistant sapphire crystal glass, Japanese quartz movement, and a ultra-slim 8mm stainless steel case. Water resistant to 50m. Comes in a gift box.",
+    "category": "fashion",
+    "stock": 28,
+    "image": "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=600&h=600&fit=crop",
+    "rating": 4.6,
+    "numReviews": 156
+  },
+  {
+    "name": "Portable Bluetooth Speaker",
+    "price": 79.99,
+    "description": "Rugged IPX7 waterproof Bluetooth speaker delivering rich 360-degree sound with deep bass. Offers 20 hours of playtime, built-in microphone for calls, USB-C charging, and a carabiner clip for on-the-go use.",
+    "category": "electronics",
+    "stock": 67,
+    "image": "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=600&h=600&fit=crop",
+    "rating": 4.5,
+    "numReviews": 312
+  },
+  {
+    "name": "Ceramic Pour-Over Coffee Set",
+    "price": 54.99,
+    "description": "Handcrafted ceramic pour-over coffee dripper with a double-wall borosilicate glass carafe (600ml), reusable stainless steel mesh filter, and a bamboo lid. Designed for optimal extraction temperature retention.",
+    "category": "home-living",
+    "stock": 35,
+    "image": "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600&h=600&fit=crop",
+    "rating": 4.7,
+    "numReviews": 98
+  },
+  {
+    "name": "Hydrating Hyaluronic Acid Serum",
+    "price": 42.99,
+    "description": "A lightweight, fast-absorbing facial serum formulated with hyaluronic acid, vitamin C, and niacinamide. Dermatologist-tested, fragrance-free, and suitable for all skin types. 30ml / 1 fl oz bottle.",
+    "category": "beauty",
+    "stock": 120,
+    "image": "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=600&h=600&fit=crop",
+    "rating": 4.4,
+    "numReviews": 201
+  },
+  {
+    "name": "Premium Yoga Mat — Extra Thick",
+    "price": 68.99,
+    "description": "Eco-friendly 6mm thick TPE yoga mat with dual-layer non-slip texture, alignment guide lines, and a carrying strap. Free from PVC, latex, and toxic glues. Measures 183cm x 68cm. Ideal for yoga, pilates, and stretching.",
+    "category": "sports",
+    "stock": 53,
+    "image": "https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=600&h=600&fit=crop",
+    "rating": 4.6,
+    "numReviews": 178
+  },
+  {
+    "name": "The Art of Clean Code — Hardcover",
+    "price": 34.99,
+    "description": "A comprehensive guide to writing maintainable, readable, and efficient code. Covers SOLID principles, design patterns, refactoring techniques, test-driven development, and practical code smells. 384 pages. Published by O'Reilly Media.",
+    "category": "books",
+    "stock": 200,
+    "image": "https://images.unsplash.com/photo-1532012197267-da84d127e765?w=600&h=600&fit=crop",
+    "rating": 4.9,
+    "numReviews": 423
+  }
+]
