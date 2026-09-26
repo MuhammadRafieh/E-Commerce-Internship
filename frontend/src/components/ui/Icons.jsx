@@ -35,6 +35,7 @@ export function Share2(props) { return <Icon {...props}><circle cx="18" cy="5" r
 export function Minus(props) { return <Icon {...props}><path d="M5 12h14" /></Icon> }
 export function Plus(props) { return <Icon {...props}><path d="M5 12h14" /><path d="M12 5v14" /></Icon> }
 export function Trash2(props) { return <Icon {...props}><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></Icon> }
+export function Sparkles(props) { return <Icon {...props}><path d="M12 3l1.9 4.8L19 9.7l-5.1 1.9L12 16.4l-1.9-4.8L5 9.7l5.1-1.9L12 3Z" /><path d="M19 14l.9 2.3L22 17.2l-2.1.8L19 20.3l-.9-2.3-2.1-.8 2.1-.8L19 14Z" /><path d="M5 15l.7 1.8 1.8.7-1.8.7L5 20l-.7-1.8-1.8-.7 1.8-.7L5 15Z" /></Icon> }
 export function SlidersHorizontal(props) { return <Icon {...props}><path d="M21 4h-6" /><path d="M9 4H3" /><path d="M15 12H3" /><path d="M21 12h-2" /><path d="M15 20H3" /><path d="M21 20h-6" /><circle cx="18" cy="4" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="18" cy="20" r="1.5" /></Icon> }
 export function Grid3X3(props) { return <Icon {...props}><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /><path d="M15 3v18" /></Icon> }
 export function List(props) { return <Icon {...props}><line x1="8" x2="21" y1="6" y2="6" /><line x1="8" x2="21" y1="12" y2="12" /><line x1="8" x2="21" y1="18" y2="18" /><line x1="3" x2="3.01" y1="6" y2="6" /><line x1="3" x2="3.01" y1="12" y2="12" /><line x1="3" x2="3.01" y1="18" y2="18" /></Icon> }

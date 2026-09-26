@@ -1,114 +1,109 @@
-import Product from '../models/Product.js'
+import { searchCatalog } from '../utils/catalogSearch.js'
+import { complete, isLLMEnabled, llmInfo } from '../utils/llm.js'
+
+const MAX_MESSAGE_LENGTH = 500
+const MAX_HISTORY = 10
+
+const currency = (n) => `Rs ${Number(n).toLocaleString('en-IN')}`
+
+const buildSystemPrompt = (products) => {
+  const lines = products.map((p) => {
+    const deal = p.isDeal ? ` (was ${currency(p.originalPrice)}, now ${currency(p.price)})` : ''
+    const stock = p.inStock ? 'in stock' : 'out of stock'
+    return `- [${p.id}] ${p.name} — ${currency(p.price)}${deal} | ${p.category} | rated ${p.rating}/5 from ${p.numReviews} reviews | ${stock}\n  ${p.description}`
+  })
+
+  return [
+    'You are the shopping assistant for an online store that sells in INR (Indian Rupees).',
+    '',
+    'Answer using ONLY the catalogue below. These are real products that exist in the store.',
+    '',
+    'CATALOGUE:',
+    lines.length ? lines.join('\n') : '(no products matched the request)',
+    '',
+    'Rules:',
+    '- Never invent a product, price, or discount that is not in the catalogue.',
+    '- If the catalogue is empty, say you could not find a match and suggest different wording.',
+    '- Keep replies to 2-3 short sentences. Be friendly but concise.',
+    '- Mention the product names and prices you are recommending.',
+    '- Do not use markdown, bullet points, or emoji.',
+    '- You cannot perform actions like adding to cart or checking out; the user can do that from the product links shown alongside your reply.',
+  ].join('\n')
+}
+
+/** Deterministic reply used when no LLM is configured, or when it fails. */
+const fallbackReply = (products, category) => {
+  if (!products.length) {
+    return "I couldn't find anything matching that. Try different keywords, or browse the shop page."
+  }
+  const heading = category ? `Here are some ${category} options` : 'Here is what I found'
+  return `${heading} (${products.length} ${products.length === 1 ? 'match' : 'matches'}):`
+}
 
 /**
  * POST /api/ai/chat
  *
- * Evaluates natural-language shopping intents and returns
- * matching products as interactive links.
- *
- * Supported intents:
- *   "show me things under Rs 30"
- *   "best rated headphones"
- *   "cheapest products"
- *   "what's in the electronics category"
+ * Grounds every answer in real catalogue data: products are retrieved first,
+ * then an LLM (when configured) phrases the reply using only those products.
+ * This is what stops the assistant from hallucinating items or prices.
+ * Falls back to a deterministic reply if the LLM is absent or errors.
  */
 export const chat = async (req, res) => {
-  const { message } = req.body
+  const { message, history } = req.body || {}
 
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ reply: "Please type a message so I can help you shop.", products: [] })
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return res.status(400).json({
+      reply: 'Please type a message so I can help you shop.',
+      products: [],
+    })
   }
 
-  const normalized = message.toLowerCase().trim()
-  const filter = {}
+  const trimmed = message.trim().slice(0, MAX_MESSAGE_LENGTH)
 
-  /* --- Price filters --- */
-  const underMatch = normalized.match(/under\s*(?:rs\.?\s*)?(\d+)/i)
-  const aboveMatch = normalized.match(/(?:above|over)\s*(?:rs\.?\s*)?(\d+)/i)
-  const rangeMatch = normalized.match(/between\s*(?:rs\.?\s*)?(\d+)\s*(?:and|[-])\s*(?:rs\.?\s*)?(\d+)/i)
-  const maxMatch = normalized.match(/max\s*(?:rs\.?\s*)?(\d+)/i)
-  const minMatch = normalized.match(/min\s*(?:rs\.?\s*)?(\d+)/i)
+  try {
+    const { products, category } = await searchCatalog(trimmed, { limit: 8 })
 
-  if (rangeMatch) {
-    filter.price = { $gte: Number(rangeMatch[1]), $lte: Number(rangeMatch[2]) }
-  } else if (underMatch || maxMatch) {
-    const val = Number((underMatch || maxMatch)[1])
-    filter.price = { $lte: val }
-  } else if (aboveMatch || minMatch) {
-    const val = Number((aboveMatch || minMatch)[1])
-    filter.price = { $gte: val }
+    const priorTurns = Array.isArray(history)
+      ? history
+          .filter((h) => h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string')
+          .slice(-MAX_HISTORY)
+          .map((h) => ({
+            role: h.role,
+            content: h.content.slice(0, 500),
+          }))
+      : []
+
+    const llmReply = isLLMEnabled()
+      ? await complete({
+          system: buildSystemPrompt(products),
+          history: [...priorTurns, { role: 'user', content: trimmed }],
+        })
+      : null
+
+    /* The catalogue is the source of truth for what to show, regardless of
+       whether the prose came from the model. */
+    const links = products.slice(0, 6).map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      image: p.image,
+      category: p.category,
+      rating: p.rating,
+      inStock: p.inStock,
+      isDeal: p.isDeal,
+    }))
+
+    res.json({
+      reply: llmReply || fallbackReply(products, category),
+      products: links,
+      source: llmReply ? 'llm' : 'rules',
+      llm: llmInfo(),
+    })
+  } catch (err) {
+    console.error('[ai] chat failed:', err)
+    res.status(500).json({
+      reply: "Sorry, something went wrong on my end. Please try again.",
+      products: [],
+    })
   }
-
-  /* --- Category detection --- */
-  const categoryKeywords = {
-    electronics: ['electronics', 'electronic', 'gadget', 'tech'],
-    clothing: ['clothing', 'clothes', 'apparel', 'wear', 'fashion', 'shirt', 'dress'],
-    home: ['home', 'kitchen', 'garden', 'furniture', 'decor'],
-    sports: ['sports', 'sport', 'fitness', 'gym', 'outdoor'],
-    books: ['books', 'book', 'reading', 'literature'],
-  }
-
-  let detectedCategory = null
-  for (const [cat, keywords] of Object.entries(categoryKeywords)) {
-    if (keywords.some((kw) => normalized.includes(kw))) {
-      detectedCategory = cat
-      break
-    }
-  }
-  if (detectedCategory) {
-    filter.category = detectedCategory
-  }
-
-  /* --- Specific product name search --- */
-  const nameMatch = normalized.match(/(?:search|find|looking for|show)\s+["']?([a-z0-9\s]+)["']?/)
-  if (nameMatch && !detectedCategory && !filter.price) {
-    filter.name = { $regex: nameMatch[1].trim(), $options: 'i' }
-  }
-
-  /* --- Sorting intent --- */
-  let sortOption = { createdAt: -1 }
-  if (normalized.includes('cheapest') || normalized.includes('lowest') || normalized.includes('least expensive')) {
-    sortOption = { price: 1 }
-  } else if (normalized.includes('best rated') || normalized.includes('highest rated') || normalized.includes('top rated')) {
-    sortOption = { rating: -1 }
-  } else if (normalized.includes('most expensive') || normalized.includes('priciest')) {
-    sortOption = { price: -1 }
-  } else if (normalized.includes('newest') || normalized.includes('recent')) {
-    sortOption = { createdAt: -1 }
-  } else if (normalized.includes('popular') || normalized.includes('most reviewed')) {
-    sortOption = { numReviews: -1 }
-  }
-
-  /* --- Execute query --- */
-  const pipeline = [
-    { $match: Object.keys(filter).length > 0 ? filter : {} },
-    { $sort: sortOption },
-    { $limit: 6 },
-    {
-      $project: {
-        _id: 0,
-        id: { $toString: '$_id' },
-        name: 1,
-        price: 1,
-        image: 1,
-        category: 1,
-        rating: 1,
-      },
-    },
-  ]
-
-  const products = await Product.aggregate(pipeline)
-
-  /* --- Build reply --- */
-  let reply = ''
-  if (products.length === 0) {
-    reply = "I couldn't find any products matching your request. Try different keywords or browse our shop."
-  } else if (products.length === 1) {
-    reply = `I found 1 product matching your search:`
-  } else {
-    const intro = detectedCategory ? `Here are some great ${detectedCategory} options` : 'Here is what I found'
-    reply = `${intro} (${products.length} results):`
-  }
-
-  res.json({ reply, products })
 }

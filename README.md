@@ -11,6 +11,7 @@ Full-stack e-commerce platform built with the MERN stack (MongoDB, Express, Reac
 | Database    | MongoDB (via Mongoose ODM)                      |
 | Auth        | JWT (bcryptjs + jsonwebtoken)                   |
 | Email       | Nodemailer (password reset)                     |
+| AI          | OpenAI / Gemini (optional, via REST)           |
 | Payments    | Stripe Checkout (INR currency)                  |
 | Deployment  | Vercel (serverless + static SPA)                |
 
@@ -23,6 +24,7 @@ Full-stack e-commerce platform built with the MERN stack (MongoDB, Express, Reac
 - **Checkout & Payments** — Shipping form + Stripe Checkout redirect (INR), order creation on payment success
 - **Auth** — Register / Login / Profile management, JWT with 7-day expiry, protected routes
 - **Forgot Password** — Email a single-use reset link, set a new password
+- **AI Shopping Assistant** — Natural-language product search with real catalogue grounding
 - **Admin Panel** — Full CRUD for products and categories (admin only)
 - **Responsive** — Mobile-first design, hamburger nav, touch-friendly targets, full desktop layout
 
@@ -182,6 +184,32 @@ All endpoints are prefixed with `/api`.
 
 ### Categories, Cart, Orders, Payments
 See route files in `backend/routes/` for full endpoint listings.
+
+### AI Assistant
+
+| Method | Endpoint      | Auth   | Description                          |
+| ------ | ------------- | ------ | ------------------------------------ |
+| POST   | `/ai/chat`    | Public | Natural-language product search      |
+
+Body: `{ message, history? }` — `history` is prior turns (`role` + `content`) for
+multi-turn context.
+
+**How it stays accurate:** the assistant never invents products. Every reply is
+grounded in a catalogue lookup that runs first — the matching real products are
+retrieved from MongoDB and injected into the model's system prompt, and the
+product links shown in the chat come from that database result rather than from
+the model's text. If no key is configured, or the provider call fails, it falls
+back to a deterministic templated reply and the response reports
+`source: "rules"` instead of `"llm"`.
+
+Understood intents: price ranges (`under`, `between X and Y`, `above`), category
+(including synonyms such as "clothes" → `fashion`), `deals`/`discount`,
+`in stock`, and sorting by cheapest, most expensive, best rated, most reviewed,
+or newest. Category keywords are read from the `categories` collection, so
+adding a category in the admin panel needs no code change.
+
+Configure with `LLM_PROVIDER` (`openai` or `gemini`), `LLM_API_KEY`, and
+optionally `LLM_MODEL` / `LLM_BASE_URL`. The key stays server-side.
 
 ## Admin Access
 

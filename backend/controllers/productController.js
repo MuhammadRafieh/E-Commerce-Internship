@@ -106,7 +106,22 @@ export const getRecommendations = async (req, res) => {
             { $cond: [{ $eq: ['$category', product.category] }, 3, 0] },
             {
               $cond: [
-                { $gt: [{ $size: { $setIntersection: ['$tags', product.tags || []] } }, 0] },
+                {
+                  /* $setIntersection returns null when handed a null array,
+                     and $size then throws. Products with `tags: null` exist
+                     in the data, so coerce both sides to an array first. */
+                  $gt: [
+                    {
+                      $size: {
+                        $setIntersection: [
+                          { $ifNull: ['$tags', []] },
+                          { $ifNull: [product.tags ?? null, []] },
+                        ],
+                      },
+                    },
+                    0,
+                  ],
+                },
                 2,
                 0,
               ],
