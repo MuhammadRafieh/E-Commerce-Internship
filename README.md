@@ -162,13 +162,22 @@ All endpoints are prefixed with `/api`.
 ### Categories, Cart, Orders, Payments
 See route files in `backend/routes/` for full endpoint listings.
 
-## Admin Credentials
+## Admin Access
 
-| Email                   | Password   |
-| ----------------------- | ---------- |
-| `rafieh123456@gmail.com`| `admin123` |
+The admin panel is at `/admin` and requires a user account with the `admin` role.
 
-Seed the database first, then log in. The admin panel is at `/admin`.
+Seed the database first, then promote an account you own:
+
+```bash
+# In mongosh / Atlas Data Explorer, on the ecommerce database:
+db.users.updateOne(
+  { email: "you@example.com" },
+  { $set: { role: "admin" } }
+)
+```
+
+Do not commit real credentials — admin accounts are created locally and seeded
+only in your own database.
 
 ## Deployment (Vercel)
 
