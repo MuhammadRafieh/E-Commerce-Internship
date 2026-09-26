@@ -3,9 +3,18 @@ dist/
 build/
 .env
 .env.local
+
+# Env variants — never commit real secrets, but keep .env.example tracked
+.env.*
+!.env.example
+
 *.log
 .DS_Store
 Thumbs.db
 coverage/
 .vite/
 .vercel/
+
+# User-uploaded files (admin panel) — keep the directory, not the contents
+backend/uploads/*
+!backend/uploads/.gitkeep
