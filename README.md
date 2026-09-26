@@ -10,6 +10,7 @@ Full-stack e-commerce platform built with the MERN stack (MongoDB, Express, Reac
 | Backend     | Node.js, Express, Mongoose                      |
 | Database    | MongoDB (via Mongoose ODM)                      |
 | Auth        | JWT (bcryptjs + jsonwebtoken)                   |
+| Email       | Nodemailer (password reset)                     |
 | Payments    | Stripe Checkout (INR currency)                  |
 | Deployment  | Vercel (serverless + static SPA)                |
 
@@ -21,6 +22,7 @@ Full-stack e-commerce platform built with the MERN stack (MongoDB, Express, Reac
 - **Cart** — Client-side cart with localStorage persistence, quantity controls, remove items, price summary
 - **Checkout & Payments** — Shipping form + Stripe Checkout redirect (INR), order creation on payment success
 - **Auth** — Register / Login / Profile management, JWT with 7-day expiry, protected routes
+- **Forgot Password** — Email a single-use reset link, set a new password
 - **Admin Panel** — Full CRUD for products and categories (admin only)
 - **Responsive** — Mobile-first design, hamburger nav, touch-friendly targets, full desktop layout
 
@@ -56,10 +58,23 @@ JWT_EXPIRES_IN=7d
 CLIENT_URL=http://localhost:5173
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Optional — password reset email. If unset, the reset link is
+# printed to the backend console instead of being sent.
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+MAIL_FROM=no-reply@yourdomain.com
+
 NODE_ENV=development
 ```
 
 > `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are optional. Without them, Stripe endpoints return a 503.
+>
+> `SMTP_*` is optional. Without it, `/auth/forgot-password` still works and prints the reset link to the server log — handy in development.
+>
+> `JWT_SECRET` is **required** when `NODE_ENV=production`. The server refuses to boot without it rather than fall back to a guessable signing key.
 
 ### Seed the Database
 
@@ -147,6 +162,10 @@ All endpoints are prefixed with `/api`.
 | GET    | `/auth/profile`  | Protected| Get user profile     |
 | PUT    | `/auth/profile`  | Protected| Update profile       |
 | PUT    | `/auth/password` | Protected| Change password      |
+| POST   | `/auth/forgot-password` | Public | Email a reset link |
+| POST   | `/auth/reset-password/:token` | Public | Set a new password |
+
+**Password reset:** tokens are 256-bit, stored only as a SHA-256 hash, expire after 1 hour, and are single-use. `forgot-password` returns an identical response whether or not the address exists, so it can't be used to discover registered emails.
 
 ### Products
 | Method | Endpoint              | Auth     | Description                |
