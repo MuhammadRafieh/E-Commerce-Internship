@@ -282,7 +282,65 @@ The project is configured for Vercel deployment via `vercel.json`:
 
 - **API**: The `api/` directory is deployed as a serverless function handling `/api/*`
 - **Frontend**: Built as a static SPA (`frontend/dist`), all non-API routes fall back to `index.html`
-- **Environment variables**: Set `MONGO_URI`, `JWT_SECRET`, `CLIENT_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` in Vercel dashboard
+
+### Environment variables
+
+Set these in the Vercel dashboard:
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `MONGO_URI` | Yes | Atlas connection string |
+| `JWT_SECRET` | Yes | Server refuses to boot in production without it |
+| `CLIENT_URL` | Yes | Your deployed origin, used for CORS and reset links |
+| `UPSTASH_REDIS_REST_URL` | Yes | Shared rate-limit counters — see below |
+| `UPSTASH_REDIS_REST_TOKEN` | Yes | |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | No | Stripe endpoints return 503 without them |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | No | Without them, reset links print to the function log |
+
+### Rate limiting on serverless
+
+`express-rate-limit` counts in process memory by default. On Vercel every cold
+start gets a fresh instance, so the limit is effectively **not applied** — an
+attacker can cycle through login and password-reset by forcing cold starts.
+Setting the two `UPSTASH_REDIS_*` variables switches the limiters to shared
+Redis counters over HTTP, which needs no TCP connection from a lambda.
+
+If Redis becomes unreachable the limiters **fail open** (requests are allowed
+without counting). That is deliberate: a Redis outage must not lock every
+customer out of signing in. Losing throttling briefly is a far smaller problem
+than a total login outage. `GET /api/ai/health` reports the active backend as
+`in-memory`, `upstash`, or `upstash(degraded)`.
+
+### Known limitation: image uploads
+
+`POST /api/upload` writes to `backend/uploads/`, but the serverless filesystem
+is read-only outside `/tmp`, so **uploaded images will not persist on Vercel**.
+Point multer at object storage (S3, Cloudinary, Vercel Blob) before relying on
+uploads in production.
+
+### Verifying the deployment surface
+
+```bash
+cd backend
+npm run verify:deploy
+```
+
+Asserts that `api/index.js` mounts every route `backend/server.js` does, and
+that the serverless bundle can be imported. The AI assistant, admin panel,
+coupons and uploads were all mounted only locally at one point, which is
+exactly the class of bug this catches.
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+- installs all four workspaces
+- `verify:deploy` — route parity and serverless import check
+- `test:ai` — assistant coverage against a MongoDB service container
+- `npm run build` — frontend production build
+- a credential-shape scan that fails if a key-shaped string is committed
+  (lockfiles and `.env.example` are excluded; verified against known key
+  formats so it does not fire on placeholders)
 
 ## Testing
 

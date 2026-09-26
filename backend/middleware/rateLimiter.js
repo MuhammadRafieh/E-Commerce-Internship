@@ -1,10 +1,23 @@
 import rateLimit from 'express-rate-limit'
+import { sharedRateLimitStore, rateLimitBackend } from './rateLimitStore.js'
+
+/**
+ * Rate limiters.
+ *
+ * Each limiter passes a shared Upstash-backed store when UPSTASH_REDIS_REST_URL
+ * and UPSTASH_REDIS_REST_TOKEN are set, so counters survive serverless cold
+ * starts. Without them it falls back to the in-memory default, which is correct
+ * for local development but is effectively no limit on a lambda.
+ */
+
+const windowMs = 15 * 60 * 1000
 
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts per window per IP
+  windowMs,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  store: sharedRateLimitStore('auth'),
   message: { message: 'Too many attempts. Please try again after 15 minutes.' },
 })
 
@@ -19,6 +32,7 @@ export const passwordResetLimiter = rateLimit({
   max: 5, // 5 reset attempts per window per IP
   standardHeaders: true,
   legacyHeaders: false,
+  store: sharedRateLimitStore('reset'),
   message: { message: 'Too many reset attempts. Please try again later.' },
 })
 
@@ -27,6 +41,7 @@ export const checkoutLimiter = rateLimit({
   max: 20, // 20 checkout submissions per hour per IP
   standardHeaders: true,
   legacyHeaders: false,
+  store: sharedRateLimitStore('checkout'),
   message: { message: 'Too many checkout attempts. Please try again later.' },
 })
 
@@ -35,5 +50,8 @@ export const generalLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  store: sharedRateLimitStore('general'),
   message: { message: 'Too many requests. Please slow down.' },
 })
+
+export { rateLimitBackend }

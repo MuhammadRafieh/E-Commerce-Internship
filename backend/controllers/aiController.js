@@ -1,4 +1,5 @@
 import { answer, getStats } from '../utils/nlp/engine.js'
+import { rateLimitBackend } from '../middleware/rateLimiter.js'
 
 const MAX_MESSAGE_LENGTH = 500
 const RESULT_CONTEXT_LIMIT = 6
@@ -51,10 +52,15 @@ export const chat = async (req, res) => {
   }
 }
 
-/** GET /api/ai/health — confirms the engine is up and how big the index is. */
+/** GET /api/ai/health — engine status, index size, and rate-limit backend. */
 export const health = async (req, res) => {
   try {
-    res.json({ ok: true, engine: 'local-nlp', ...getStats() })
+    res.json({
+      ok: true,
+      engine: 'local-nlp',
+      rateLimit: rateLimitBackend(),
+      ...getStats(),
+    })
   } catch (err) {
     res.status(500).json({ ok: false, message: err.message })
   }
