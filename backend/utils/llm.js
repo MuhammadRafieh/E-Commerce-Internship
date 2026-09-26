@@ -12,6 +12,16 @@
 
 const TIMEOUT_MS = 15000
 
+/* Gemini 3.x bills thinking tokens against maxOutputTokens, so a small cap
+   starves the visible answer and returns a truncated sentence. */
+const MAX_OUTPUT_TOKENS = 2048
+
+/* Gemini frequently answers 429/503 ("high demand"). These are transient, so
+   retry briefly with backoff before giving up and falling back. */
+const MAX_ATTEMPTS = 3
+const RETRYABLE = new Set([408, 429, 500, 502, 503, 504])
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
 const getConfig = () => {
   const provider = (process.env.LLM_PROVIDER || '').toLowerCase()
   const apiKey = process.env.LLM_API_KEY
@@ -57,12 +67,16 @@ const callOpenAI = async (cfg, system, history) => {
     body: JSON.stringify({
       model: cfg.model,
       temperature: 0.4,
-      max_tokens: 300,
+      max_tokens: MAX_OUTPUT_TOKENS,
       messages: [{ role: 'system', content: system }, ...history],
     }),
   })
 
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  if (!res.ok) {
+    const err = new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 200)}`)
+    err.status = res.status
+    throw err
+  }
   const data = await res.json()
   return data?.choices?.[0]?.message?.content?.trim() || null
 }
@@ -85,11 +99,15 @@ const callGemini = async (cfg, system, history) => {
     body: JSON.stringify({
       system_instruction: { parts: [{ text: system }] },
       contents,
-      generationConfig: { temperature: 0.4, maxOutputTokens: 300 },
+      generationConfig: { temperature: 0.4, maxOutputTokens: MAX_OUTPUT_TOKENS },
     }),
   })
 
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  if (!res.ok) {
+    const err = new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`)
+    err.status = res.status
+    throw err
+  }
   const data = await res.json()
   return data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('')?.trim() || null
 }
@@ -97,19 +115,38 @@ const callGemini = async (cfg, system, history) => {
 /**
  * Returns a natural-language reply, or null if the LLM is unconfigured or
  * fails. Callers must treat null as "use the fallback".
+ *
+ * Transient upstream failures (429/503 high demand, 5xx) are retried with
+ * linear backoff before giving up.
  */
 export const complete = async ({ system, history }) => {
   const cfg = getConfig()
   if (!cfg) return null
 
-  try {
-    const text =
-      cfg.provider === 'gemini'
-        ? await callGemini(cfg, system, history)
-        : await callOpenAI(cfg, system, history)
-    return text || null
-  } catch (err) {
-    console.error('[llm] request failed, falling back:', err.message)
-    return null
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const text =
+        cfg.provider === 'gemini'
+          ? await callGemini(cfg, system, history)
+          : await callOpenAI(cfg, system, history)
+      return text || null
+    } catch (err) {
+      const status = Number(err.status || 0)
+      const canRetry = RETRYABLE.has(status) && attempt < MAX_ATTEMPTS
+
+      if (canRetry) {
+        const wait = 400 * attempt
+        console.warn(
+          `[llm] ${status} from provider, retry ${attempt}/${MAX_ATTEMPTS} in ${wait}ms`,
+        )
+        await sleep(wait)
+        continue
+      }
+
+      console.error('[llm] request failed, falling back:', err.message)
+      return null
+    }
   }
+
+  return null
 }

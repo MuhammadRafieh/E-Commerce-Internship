@@ -95,7 +95,16 @@ const SEARCH_STOPWORDS = new Set([
   'show', 'me', 'some', 'find', 'search', 'looking', 'for', 'a', 'an', 'the',
   'any', 'good', 'best', 'nice', 'cool', 'please', 'give', 'get', 'i', 'want',
   'need', 'have', 'display', 'list', 'all', 'products', 'product', 'items', 'item',
-  'do', 'you', 'have', 'what', 'whats', 'what\'s', 'is', 'are', 'of', 'in', 'to',
+  'do', 'you', 'what', 'whats', "what's", 'is', 'are', 'of', 'in', 'to',
+  /* Generic shopping verbs/nouns. Without these, "what do you sell?" leaves
+     "sell" as a search term, looks like a specific query, matches nothing, and
+     wrongly reports no results instead of showing featured products. */
+  'sell', 'sells', 'selling', 'sold', 'offer', 'offers', 'offering', 'carry',
+  'carries', 'stock', 'range', 'options', 'recommend', 'recommends',
+  'recommendation', 'suggest', 'suggests', 'suggestion', 'available',
+  'buy', 'buying', 'purchase', 'purchasing', 'shop', 'shopping', 'browse',
+  'explore', 'category', 'categories', 'kind', 'kinds', 'type', 'types',
+  'there', 'here', 'anything', 'something', 'know', 'help', 'like',
 ])
 
 const extractTerms = (text) =>
@@ -139,7 +148,15 @@ export const searchCatalog = async (rawMessage, { limit = 8 } = {}) => {
   }
 
   if (!products.length) {
-    products = await Product.find({}).sort(intents.sort).limit(limit).lean()
+    /* Only fall back to a broad browse for genuinely open-ended questions
+       ("what do you have?"). If the user named something specific and it
+       matched nothing, returning unrelated products contradicts the reply
+       and reads as a bug. */
+    const wasSpecific = Boolean(category) || terms.length > 0 || Object.keys(filter).length > 0
+
+    if (!wasSpecific) {
+      products = await Product.find({}).sort(intents.sort).limit(limit).lean()
+    }
   }
 
   return {
