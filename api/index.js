@@ -1,8 +1,11 @@
 import 'express-async-errors'
 import express from 'express'
 import cors from 'cors'
+import cookieParser from 'cookie-parser'
 import mongoose from 'mongoose'
 import Stripe from 'stripe'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 import { corsOptions } from '../backend/config/cors.js'
 import { errorHandler } from '../backend/middleware/errorHandler.js'
@@ -12,7 +15,13 @@ import cartRoutes from '../backend/routes/cartRoutes.js'
 import orderRoutes from '../backend/routes/orderRoutes.js'
 import categoryRoutes from '../backend/routes/categoryRoutes.js'
 import paymentRoutes from '../backend/routes/paymentRoutes.js'
+import uploadRoutes from '../backend/routes/uploadRoutes.js'
+import aiRoutes from '../backend/routes/aiRoutes.js'
+import couponRoutes from '../backend/routes/couponRoutes.js'
+import adminRoutes from '../backend/routes/adminRoutes.js'
 import Order from '../backend/models/Order.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null
 
@@ -55,14 +64,25 @@ if (stripe) {
 }
 
 app.use(cors(corsOptions))
+/* Required for the HttpOnly auth cookie to be readable by `protect`. Without
+   it every authenticated request falls through to the Bearer branch, which
+   the browser never sends, so login appears to succeed and then 401s. */
+app.use(cookieParser())
 app.use(express.json())
+app.use('/uploads', express.static(path.join(__dirname, '..', 'backend', 'uploads')))
 
+/* Keep in sync with backend/server.js — a route mounted in one but not the
+   other is a 404 in production only. */
 app.use('/api/auth', authRoutes)
 app.use('/api/products', productRoutes)
 app.use('/api/cart', cartRoutes)
 app.use('/api/orders', orderRoutes)
+app.use('/api/upload', uploadRoutes)
 app.use('/api/categories', categoryRoutes)
 app.use('/api', paymentRoutes)
+app.use('/api/ai', aiRoutes)
+app.use('/api/coupons', couponRoutes)
+app.use('/api/admin', adminRoutes)
 
 app.use(errorHandler)
 

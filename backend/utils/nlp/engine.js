@@ -24,26 +24,28 @@ const sharedPrefix = (a, b) => {
 const RESULT_LIMIT = 6
 
 /* Indexes are rebuilt lazily: a catalogue change should be picked up without
-   a restart, but not at the cost of rebuilding on every message. */
-let cache = { products: null, at: 0 }
+   a restart, but not at the cost of rebuilding on every message. The index is
+   cached alongside the products because building it is O(documents x terms) —
+   trivial for 11 products, wasteful for thousands. */
+let cache = { products: null, index: null, at: 0 }
 const TTL_MS = 30_000
 
 const loadCatalogue = async () => {
   if (cache.products && Date.now() - cache.at < TTL_MS) return cache.products
   const products = await Product.find({}).lean()
-  cache = { products, at: Date.now() }
+  cache = { products, index: new CatalogIndex(products), at: Date.now() }
   return products
 }
 
 const invalidate = () => {
-  cache = { products: null, at: 0 }
+  cache = { products: null, index: null, at: 0 }
 }
 
 /** Introspection for the health endpoint. */
 export const getStats = () => ({
   products: cache.products ? cache.products.length : null,
-  indexed: Boolean(cache.products),
-  vocabulary: cache.products ? new CatalogIndex(cache.products).vocabulary().size : 0,
+  indexed: Boolean(cache.index),
+  vocabulary: cache.index ? cache.index.vocabulary().size : 0,
 })
 
 /** Build the Mongo filter implied by a understood query. */
@@ -141,7 +143,7 @@ const shape = (p) => ({
  */
 export const answer = async (message, { previous = null } = {}) => {
   const all = await loadCatalogue()
-  const index = new CatalogIndex(all)
+  const index = cache.index
   const categories = [...new Set(all.map((p) => p.category).filter(Boolean))]
 
   const u = understand(message, {

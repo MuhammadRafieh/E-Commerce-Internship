@@ -7,7 +7,8 @@
     "dev": "node --watch server.js",
     "start": "node server.js",
     "seed": "node seed.js",
-    "test:ai": "node scripts/ai-coverage.mjs"
+    "test:ai": "node scripts/ai-coverage.mjs",
+    "verify:deploy": "node scripts/verify-deployment.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
