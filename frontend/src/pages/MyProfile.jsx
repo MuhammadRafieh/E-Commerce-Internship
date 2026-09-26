@@ -23,6 +23,16 @@ export default function MyProfile() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwError, setPwError] = useState(null)
 
+  /* Clears local auth state and returns to the sign-in screen. */
+  const logoutAndRedirect = async () => {
+    try {
+      await logout()
+    } catch {
+      /* cookie is already cleared server-side */
+    }
+    navigate('/login', { replace: true })
+  }
+
   useEffect(() => {
     if (!user) { navigate('/login', { replace: true }); return }
     authService.getProfile()
@@ -58,9 +68,17 @@ export default function MyProfile() {
     }
     setPwSaving(true)
     try {
-      await authService.changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword })
-      setPwOpen(false)
+      const res = await authService.changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword })
       setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      /* The server retires every existing token on a password change, so
+         send the user to sign in again rather than letting the next
+         request bounce them off a bare 401. */
+      if (res.data?.reauth) {
+        flash(res.data.message || 'Password changed — please sign in again')
+        setTimeout(() => logoutAndRedirect(), 1500)
+        return
+      }
+      setPwOpen(false)
       flash('Password changed')
     } catch (err) {
       setPwError(err.response?.data?.message || 'Failed to change password')

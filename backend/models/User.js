@@ -8,6 +8,11 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6 },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
 
+    /* Bumped whenever the password changes. Tokens carry the value they were
+       issued with, so a stale token stops verifying immediately instead of
+       remaining valid until its 7-day expiry. */
+    tokenVersion: { type: Number, default: 0 },
+
     /* Password reset — only the SHA-256 hash is stored, never the raw token,
        so a database leak cannot be used to take over an account. */
     resetPasswordToken: { type: String, select: false },

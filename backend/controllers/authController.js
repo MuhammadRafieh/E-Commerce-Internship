@@ -30,7 +30,7 @@ export const register = async (req, res) => {
   if (exists) return res.status(400).json({ message: 'Email already in use' })
 
   const user = await User.create({ name, email, password })
-  const token = generateToken(user._id, user.role)
+  const token = generateToken(user._id, user.role, user.tokenVersion)
   setTokenCookie(res, token)
   res.status(201).json({ user })
 }
@@ -42,7 +42,7 @@ export const login = async (req, res) => {
     return res.status(401).json({ message: 'Invalid credentials' })
   }
 
-  const token = generateToken(user._id, user.role)
+  const token = generateToken(user._id, user.role, user.tokenVersion)
   setTokenCookie(res, token)
   res.json({ user })
 }
@@ -92,8 +92,11 @@ export const changePassword = async (req, res) => {
   /* Any outstanding reset link is void once the password changes. */
   user.resetPasswordToken = undefined
   user.resetPasswordExpires = undefined
+  /* Retire tokens issued before this change, including the caller's. */
+  user.tokenVersion += 1
   await user.save()
-  res.json({ message: 'Password updated successfully' })
+  clearTokenCookie(res)
+  res.json({ message: 'Password updated. Please sign in again.', reauth: true })
 }
 
 /**
@@ -150,9 +153,11 @@ export const resetPassword = async (req, res) => {
   user.password = password
   user.resetPasswordToken = undefined
   user.resetPasswordExpires = undefined
+  /* Invalidate any session opened with the old password. */
+  user.tokenVersion += 1
   await user.save()
 
   /* Force re-authentication with the new credentials. */
   clearTokenCookie(res)
-  res.json({ message: 'Password has been reset. You can now sign in.' })
+  res.json({ message: 'Password has been reset. You can now sign in.', reauth: true })
 }
