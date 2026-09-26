@@ -77,7 +77,10 @@ const spansForPhrases = (text, phrases) => {
  * A null means "the user did not ask for this", which the response layer
  * needs in order to avoid claiming a filter was applied when it wasn't.
  */
-export const understand = (rawText, { vocabulary = new Set() } = {}) => {
+export const understand = (
+  rawText,
+  { vocabulary = new Set(), categories = [] } = {},
+) => {
   const text = normalise(rawText)
   const result = {
     raw: String(rawText || ''),
@@ -118,29 +121,40 @@ export const understand = (rawText, { vocabulary = new Set() } = {}) => {
   }
 
   /* ---- Category ----
-     Resolve against the synonym map. Exact phrase match first, then a prefix
-     pass so an inflected or clipped word still lands: "cloths" -> clothing,
-     "jewellery" -> fashion, "skincare" -> beauty. Without the prefix pass
-     "show me cloths" matched nothing because BM25 needs exact token hits. */
-  for (const [slug, words] of Object.entries(CATEGORY_SYNONYMS)) {
-    if (words.some((w) => containsPhrase(text, w))) {
-      result.category = slug
-      break
-    }
+     Candidates are the categories that actually exist in the store, read from
+     the database, with synonym words layered on top. Nothing is hardcoded as
+     the category list, so adding a category in the admin panel works with no
+     code change and no chance of this drifting out of sync again. */
+  const categoryCandidates = categories.length
+    ? categories
+    : Object.keys(CATEGORY_SYNONYMS)
+
+  const matchesCategory = (slug, synonyms) => {
+    /* Exact phrase match on the real name, the slug, or a known synonym. */
+    const literals = [slug, String(slug).replace(/-/g, ' '), ...(synonyms || [])]
+    if (literals.some((w) => containsPhrase(text, w))) return 'exact'
+
+    /* Prefix pass so inflected or clipped words still land:
+       "cloths" -> clothing, "jewelry" -> jewellery. */
+    const words = contentWords(text)
+    const partial = words.find(
+      (w) => w.length >= 4 && literals.some((lit) => lit.length >= 4 && sharedPrefix(w, lit) >= 4),
+    )
+    return partial ? 'partial' : null
   }
 
-  if (!result.category) {
-    const words = contentWords(text)
-    for (const [slug, synonyms] of Object.entries(CATEGORY_SYNONYMS)) {
-      const hit = words.find((w) => w.length >= 4 && synonyms.some((syn) => sharedPrefix(w, syn) >= 4))
-      if (hit) {
-        result.category = slug
+  for (const slug of categoryCandidates) {
+    const kind = matchesCategory(slug, CATEGORY_SYNONYMS[slug])
+    if (kind) {
+      result.category = slug
+      if (kind === 'partial') {
         /* The word that implied the category is not also a product keyword.
-           Without this, "cloths" resolves to fashion and then gets fed to
-           BM25 as a search term, which matches nothing. */
-        result.categoryHint = hit
-        break
+           Without this, "cloths" resolves to fashion and is then fed to BM25
+           as a search term, which matches nothing. */
+        const words = contentWords(text)
+        result.categoryHint = words.find((w) => w.length >= 4 && sharedPrefix(w, slug) >= 4) || words[0]
       }
+      break
     }
   }
 
@@ -182,6 +196,7 @@ export const understand = (rawText, { vocabulary = new Set() } = {}) => {
     ...spansForPhrases(text, DEAL_SIGNALS),
     ...spansForPhrases(text, STOCK_SIGNALS),
     ...spansForPhrases(text, Object.values(CATEGORY_SYNONYMS).flat()),
+    ...spansForPhrases(text, categories.flatMap((c) => [c, String(c).replace(/-/g, ' ')])),
     ...spansForPhrases(
       text,
       Object.entries(result.attributes).flatMap(([k]) => ATTRIBUTE_SYNONYMS[k] || []),

@@ -7,12 +7,12 @@
  * hit outranks a description hit and rare terms count for more.
  */
 
-import { stem, normalise } from './text.js'
+import { stem, splitWords } from './text.js'
 
 const K1 = 1.5
 const B = 0.75
 
-const words = (s) => normalise(s).split(' ').filter(Boolean).map(stem)
+const words = (s) => splitWords(s).map(stem)
 
 /**
  * Build the searchable text for one product, with field weighting.

@@ -7,58 +7,75 @@
  */
 
 /**
- * Category synonyms keyed by the *slug* stored on products.
+ * Extra synonyms layered on top of the real category list.
+ *
+ * The actual category set is read from the database at query time — this map
+ * only ADDS friendly words. An earlier version hardcoded the categories and
+ * drifted out of sync (it knew `fashion` but not `jewelry`, which the store
+ * actually uses), so categories are no longer duplicated here.
  *
  * Only words that identify a *category* belong here. Product nouns such as
- * "headphones", "yoga mat" or "mug" are intentionally absent: if they were
- * listed, a query like "cheapest headphones" would be reduced to a bare
- * category filter and the product word would be thrown away, returning
- * whatever was cheapest in the category instead of the headphones.
- * Those words work better as ordinary search terms through BM25.
+ * "headphones" or "yoga mat" are intentionally absent: if they were listed, a
+ * query like "cheapest headphones" would collapse to a bare category filter and
+ * the product word would be discarded. Those work better as BM25 search terms.
  */
 export const CATEGORY_SYNONYMS = {
   electronics: [
     'electronics', 'electronic', 'gadget', 'gadgets', 'tech', 'technology',
-    'devices', 'device', 'consumer electronics',
+    'devices', 'device', 'consumer electronics', 'audio', 'tv', 'television',
   ],
   fashion: [
-    'fashion', 'clothing', 'clothes', 'apparel', 'wearables', 'jewellery',
-    'jewelry', 'accessories', 'accessory',
+    'fashion', 'clothing', 'clothes', 'apparel', 'wear', 'wearables',
+    'accessories', 'accessory', 'attire',
   ],
+  jewelry: ['jewelry', 'jewellery', 'jewels', 'accessories', 'baubles', 'ornaments'],
   'home-living': [
     'home', 'living', 'house', 'household', 'kitchen', 'furniture', 'decor',
-    'decoration', 'home decor', 'home-living',
+    'decoration', 'home decor', 'home-living', 'lifestyle',
   ],
   beauty: [
     'beauty', 'skincare', 'skin care', 'cosmetic', 'cosmetics', 'makeup',
-    'grooming', 'personal care',
+    'grooming', 'personal care', 'haircare',
   ],
   sports: [
     'sports', 'sport', 'fitness', 'gym', 'workout', 'exercise', 'training',
-    'outdoor', 'camping',
+    'outdoor', 'camping', 'athletics',
   ],
   books: [
     'books', 'book', 'reading', 'literature', 'novels', 'fiction',
-    'non-fiction', 'nonfiction',
+    'non-fiction', 'nonfiction', 'stationery',
   ],
 }
 
-/* Free-text -> canonical filter key. Order matters: first match wins. */
+/* Free-text -> canonical filter key. Order matters: first match wins.
+   These are matched against product text at query time, so the value only
+   needs to appear somewhere in the name, description or tags. */
 export const ATTRIBUTE_SYNONYMS = {
   color: [
     'color', 'colour', 'red', 'blue', 'green', 'black', 'white', 'yellow',
     'orange', 'purple', 'pink', 'grey', 'gray', 'brown', 'beige', 'navy',
     'gold', 'silver', 'maroon', 'olive', 'teal', 'cyan', 'magenta',
+    'tan', 'cream', 'ivory', 'charcoal', 'burgundy', 'mint', 'coral',
   ],
   material: [
     'material', 'made', 'leather', 'cotton', 'organic', 'wood', 'wooden',
     'metal', 'steel', 'stainless', 'plastic', 'glass', 'ceramic', 'silicone',
     'wool', 'denim', 'linen', 'bamboo', 'rubber', 'marble', 'suede', 'polyester',
+    'synthetic', 'vegan', 'recycled', 'brass', 'aluminium', 'bamboo',
   ],
-  size: ['size', 'small', 'medium', 'large', 'xl', 'xxl'],
+  size: [
+    'size', 'small', 'medium', 'large', 'xl', 'xxl', 'xs', 'slim fit',
+    'regular fit', 'loose fit', 'oversized', 'petite', 'tall',
+  ],
   brand: [
     'brand', 'nike', 'adidas', 'samsung', 'apple', 'sony', 'dell', 'canon',
-    'jbl', 'xiaomi', 'lenovo', 'puma', 'reebok',
+    'jbl', 'xiaomi', 'lenovo', 'puma', 'reebok', 'boat', 'oneplus', 'realme',
+    'hp', 'asus', 'acer', 'bose', 'sennheiser', 'fitbit', 'nike air',
+  ],
+  feature: [
+    'wireless', 'bluetooth', 'noise cancelling', 'waterproof', 'water resistant',
+    'rechargeable', 'foldable', 'portable', 'cordless', 'usb', 'fast charging',
+    'stainless steel', 'sapphire', 'handmade', 'organic',
   ],
 }
 

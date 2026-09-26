@@ -228,7 +228,36 @@ rated / most reviewed / newest, and gift framing (`gift for my dad under 2000`,
 where the recipient is understood as context rather than a product keyword).
 
 Adding vocabulary — a category synonym, an attribute, a brand — is a single line
-in `utils/nlp/ontology.js`.
+in `utils/nlp/ontology.js`. Categories themselves are **not** listed there: they
+are read from the database at query time, so a category added through the admin
+panel is understood immediately with no code change.
+
+### Testing the assistant
+
+```bash
+cd backend
+npm run test:ai
+```
+
+Checks that every product is reachable through the phrasings a shopper would
+actually type, and prints any probe that fails so a vocabulary gap is visible
+rather than guessed at. It exits non-zero if a product cannot be found at all.
+
+### When nothing matches
+
+The reply names what was actually missing, rather than the first thing it
+thinks of:
+
+| Query | Reply |
+| --- | --- |
+| `waterproof jacket` | "I don't stock "jacket". Here is the closest we have in the store." |
+| `gold necklace` | "Nothing here matches "gold"." |
+| `running shoes` | "I don't stock "running" or "shoes"." |
+| `newest arrivals` | Browses, sorted — "arrivals" was treated as a stray noun, not a product |
+
+A request for a colour or material the catalogue does not document returns
+nothing rather than guessing, which is the intended trade-off: no product in the
+store records a material, so asking for a "gold necklace" will not match one.
 
 ## Admin Access
 

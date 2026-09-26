@@ -11,7 +11,15 @@ import {
   capabilities,
   categoryLabel,
 } from './respond.js'
-import { normalise } from './text.js'
+import { splitWords, stem } from './text.js'
+
+/** Length of the common prefix of two strings. */
+const sharedPrefix = (a, b) => {
+  let i = 0
+  const n = Math.min(a.length, b.length)
+  while (i < n && a[i] === b[i]) i++
+  return i
+}
 
 const RESULT_LIMIT = 6
 
@@ -60,12 +68,37 @@ const buildFilter = (u) => {
   return filter
 }
 
-/** Apply attribute filters in JS, where matching a word inside text is fine. */
+/**
+ * Apply attribute filters.
+ *
+ * Matching is done per token with a shared-prefix comparison rather than a
+ * plain substring test, because a shopper's words and the product's wording
+ * routinely differ by a hyphen or a suffix: asking for "noise cancelling" must
+ * match "Noise-Cancelling" in the title and "noise cancellation" in the
+ * description. A substring test fails both.
+ */
 const matchesAttributes = (product, attributes) => {
-  const haystack = normalise(
-    [product.name, product.description, (product.tags || []).join(' '), product.category].join(' '),
-  )
-  return Object.values(attributes).every((value) => haystack.includes(normalise(value)))
+  const text = [product.name, product.description, (product.tags || []).join(' '), product.category]
+    .filter(Boolean)
+    .join(' ')
+
+  const productTokens = new Set(splitWords(text).map(stem))
+
+  return Object.values(attributes).every((value) => {
+    const wanted = splitWords(value).filter((w) => w.length > 1)
+    if (!wanted.length) return true
+
+    return wanted.every((w) => {
+      const target = stem(w)
+      if (productTokens.has(target)) return true
+      /* Allow morphological variants: "cancelling" vs "cancellation". */
+      for (const token of productTokens) {
+        if (Math.abs(token.length - target.length) > 4) continue
+        if (sharedPrefix(token, target) >= 4) return true
+      }
+      return false
+    })
+  })
 }
 
 const sortProducts = (products, sort) => {
@@ -111,7 +144,10 @@ export const answer = async (message, { previous = null } = {}) => {
   const index = new CatalogIndex(all)
   const categories = [...new Set(all.map((p) => p.category).filter(Boolean))]
 
-  const u = understand(message, { vocabulary: index.vocabulary() })
+  const u = understand(message, {
+    vocabulary: index.vocabulary(),
+    categories,
+  })
 
   /* --- Meta questions --- */
   if (/\b(help|what can you do|how do i use|commands|capabilities)\b/.test(u.text)) {
@@ -158,6 +194,9 @@ export const answer = async (message, { previous = null } = {}) => {
     u.inStockOnly ||
     Object.keys(u.attributes).length > 0
 
+  const searchTerms = u.terms.length > 0
+  let termsMatchedNothing = false
+
   let candidates = all.filter(
     (p) =>
       Object.entries(filter).every(([key, value]) => {
@@ -174,14 +213,18 @@ export const answer = async (message, { previous = null } = {}) => {
   )
 
   /* BM25 over the candidate set, using the query's product terms. */
-  if (u.terms.length) {
+  if (searchTerms) {
     const subIndex = new CatalogIndex(candidates)
     const ranked = subIndex.search(u.terms).map((r) => r.product)
     if (ranked.length) {
       candidates = ranked
-    } else if (!hardSignal) {
-      /* Stray noun with nothing to match it ("newest arrivals"): browse
-         rather than reporting zero results. */
+    } else {
+      /* The words being searched for exist in no product. Record that
+         regardless of any other filter, otherwise the unfiltered set is
+         reported as a match — which is how "running shoes" came back with
+         "I found 11 products". What happens next depends on whether the user
+         also asked for a sort or a hard filter. */
+      termsMatchedNothing = true
       candidates = []
     }
   }
@@ -193,10 +236,8 @@ export const answer = async (message, { previous = null } = {}) => {
   const sorted = sortProducts(candidates, u.sort)
   const isRefinement = Boolean(previous?.products?.length) && u.isRefinement
 
-  /* Nothing matched the keywords and there was no hard constraint. If the user
-     asked for an ordering ("newest arrivals"), the leftover noun was noise and
-     a plain browse is right. If they named a product we do not stock
-     ("running shoes"), say so rather than pretending the browse answered it. */
+  /* A bare sort request with leftover nouns ("newest arrivals") is a browse,
+     not a failed search. Checked first so it is not swallowed below. */
   if (!sorted.length && !hardSignal && u.sort) {
     const browsed = sortAndSlice(all, u)
     return {
@@ -206,35 +247,47 @@ export const answer = async (message, { previous = null } = {}) => {
     }
   }
 
+  /* Nothing survived. Work out the real reason before answering, so the reply
+     names the thing that was actually missing instead of blaming a word that
+     does exist ("gold necklace" must not report that there is no necklace). */
   if (!sorted.length) {
-    /* Widen once: keep hard filters, drop the text match. Say plainly that
-       the search was widened — claiming "nothing found" and then listing
-       products reads as a contradiction. */
+    const named = u.originalTerms.slice(0, 3).map((t) => `"${t}"`).join(' or ')
+
+    let reason
+    if (termsMatchedNothing) {
+      reason = `I don't stock ${named}.`
+    } else if (Object.keys(u.attributes).length) {
+      const attrs = Object.values(u.attributes).slice(0, 2).map((a) => `"${a}"`).join(' or ')
+      reason = `Nothing here matches ${attrs}.`
+    } else if (u.category && !all.some((p) => p.category === u.category)) {
+      reason = `We don't have a ${u.category.replace(/-/g, ' ')} section yet.`
+    } else {
+      reason = noResults(u)
+    }
+
+    /* Widen only the search, never the stated reason. */
     const relaxed = all.filter(
       (p) =>
-        matchesAttributes(p, u.attributes) &&
         (!u.category || p.category === u.category) &&
         (!u.maxPrice || p.price <= u.maxPrice) &&
         (!u.minPrice || p.price >= u.minPrice) &&
         (!u.dealsOnly || (p.originalPrice && p.originalPrice > p.price)) &&
-        (!u.inStockOnly || (p.stock ?? 0) > 0),
+        (!u.inStockOnly || (p.stock ?? 0) > 0) &&
+        (termsMatchedNothing || matchesAttributes(p, u.attributes)),
     )
 
-    if (relaxed.length) {
+    if (relaxed.length && (termsMatchedNothing || Object.keys(u.attributes).length)) {
       const fallback = sortAndSlice(relaxed, u)
       const scope = categoryLabel(u.category) || 'the store'
-      const missing = u.terms.length
-        ? `I don't stock ${u.originalTerms.slice(0, 3).map((t) => `"${t}"`).join(' or ')}.`
-        : 'Nothing matched that.'
       return {
-        reply: `${missing} Here is what ${scope} has that is closest to what you asked for.`,
+        reply: `${reason} Here is the closest we have in ${scope}.`,
         products: fallback.map(shape),
         meta: { kind: 'widened', query: describeQuery(u), total: relaxed.length },
       }
     }
 
     return {
-      reply: noResults(u),
+      reply: reason,
       products: [],
       meta: { kind: 'none', query: describeQuery(u) },
     }

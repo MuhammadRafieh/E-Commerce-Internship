@@ -39,6 +39,18 @@ export const normalise = (s) =>
     .trim()
 
 /**
+ * Split normalised text into words, also splitting on hyphens and dots.
+ *
+ * Hyphen splitting matters: "Noise-Cancelling" would otherwise index as the
+ * single token "noise-cancelling" and never match a query for "noise
+ * cancelling". Splitting gives "noise" and "cancelling" on both sides.
+ */
+export const splitWords = (s) =>
+  normalise(s)
+    .split(/[\s.-]+/)
+    .filter(Boolean)
+
+/**
  * Very small suffix stemmer. Not linguistically correct, but it collapses the
  * differences that matter for catalogue search: plurals and -ing/-ed.
  * Deliberately conservative — over-stemming merges unrelated words.
@@ -67,9 +79,8 @@ export const stem = (word) => {
 
 /** Split into normalised tokens, dropping stopwords and 1-char noise. */
 export const tokenize = (text, { keepStopwords = false } = {}) => {
-  const words = normalise(text).split(' ').filter(Boolean)
   const out = []
-  for (const w of words) {
+  for (const w of splitWords(text)) {
     if (!keepStopwords && (STOPWORDS.has(w) || w.length < 2)) continue
     out.push(stem(w))
   }
@@ -78,9 +89,7 @@ export const tokenize = (text, { keepStopwords = false } = {}) => {
 
 /** Raw words (unstemmed) that survived stopword removal. */
 export const contentWords = (text) =>
-  normalise(text)
-    .split(' ')
-    .filter((w) => w && w.length > 1 && !STOPWORDS.has(w))
+  splitWords(text).filter((w) => w.length > 1 && !STOPWORDS.has(w))
 
 /** Levenshtein distance, capped for speed. */
 export const editDistance = (a, b, max = 2) => {
