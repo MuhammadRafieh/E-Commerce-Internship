@@ -1,24 +1,30 @@
+import { lazy } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import ProtectedRoute from '../components/auth/ProtectedRoute'
-import Home from '../pages/Home'
-import Shop from '../pages/Shop'
-import ProductDetail from '../pages/ProductDetail'
-import Cart from '../pages/Cart'
-import Checkout from '../pages/Checkout'
-import Login from '../pages/Login'
-import Register from '../pages/Register'
-import About from '../pages/About'
-import Contact from '../pages/Contact'
-import FAQs from '../pages/FAQs'
-import MyProfile from '../pages/MyProfile'
-import MyOrders from '../pages/MyOrders'
-import OrderSuccess from '../pages/OrderSuccess'
-import AdminDashboard from '../pages/AdminDashboard'
-import AdminOrders from '../pages/AdminOrders'
-import AdminSalesDashboard from '../pages/AdminSalesDashboard'
-import AdminCoupons from '../pages/AdminCoupons'
-import NotFound from '../pages/NotFound'
+
+/* Pages are code-split so the initial bundle only carries what the first
+   route needs. Layout/ProtectedRoute stay eager to keep the shell instant. */
+const Home = lazy(() => import('../pages/Home'))
+const Shop = lazy(() => import('../pages/Shop'))
+const ProductDetail = lazy(() => import('../pages/ProductDetail'))
+const Cart = lazy(() => import('../pages/Cart'))
+const Checkout = lazy(() => import('../pages/Checkout'))
+const Login = lazy(() => import('../pages/Login'))
+const Register = lazy(() => import('../pages/Register'))
+const ForgotPassword = lazy(() => import('../pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('../pages/ResetPassword'))
+const About = lazy(() => import('../pages/About'))
+const Contact = lazy(() => import('../pages/Contact'))
+const FAQs = lazy(() => import('../pages/FAQs'))
+const MyProfile = lazy(() => import('../pages/MyProfile'))
+const MyOrders = lazy(() => import('../pages/MyOrders'))
+const OrderSuccess = lazy(() => import('../pages/OrderSuccess'))
+const AdminDashboard = lazy(() => import('../pages/AdminDashboard'))
+const AdminOrders = lazy(() => import('../pages/AdminOrders'))
+const AdminSalesDashboard = lazy(() => import('../pages/AdminSalesDashboard'))
+const AdminCoupons = lazy(() => import('../pages/AdminCoupons'))
+const NotFound = lazy(() => import('../pages/NotFound'))
 
 export default function AppRoutes() {
   return (
@@ -31,6 +37,8 @@ export default function AppRoutes() {
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/faqs" element={<FAQs />} />
