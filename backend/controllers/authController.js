@@ -1,6 +1,12 @@
+import crypto from 'crypto'
 import User from '../models/User.js'
 import { generateToken } from '../utils/generateToken.js'
 import { env } from '../config/env.js'
+import { sendPasswordResetEmail } from '../utils/sendEmail.js'
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000 // 1 hour
+
+const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex')
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -83,6 +89,70 @@ export const changePassword = async (req, res) => {
   if (!isMatch) return res.status(400).json({ message: 'Current password is incorrect' })
 
   user.password = newPassword
+  /* Any outstanding reset link is void once the password changes. */
+  user.resetPasswordToken = undefined
+  user.resetPasswordExpires = undefined
   await user.save()
   res.json({ message: 'Password updated successfully' })
+}
+
+/**
+ * Always responds 200 with the same message whether or not the address is
+ * registered, so this endpoint cannot be used to discover which emails
+ * have accounts.
+ */
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body
+  const genericMessage =
+    'If an account exists for that email, a reset link has been sent.'
+
+  if (!email) return res.json({ message: genericMessage })
+
+  const user = await User.findOne({ email: String(email).toLowerCase() })
+
+  if (user) {
+    const rawToken = crypto.randomBytes(32).toString('hex')
+
+    user.resetPasswordToken = sha256(rawToken)
+    user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS)
+    await user.save()
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173'
+    await sendPasswordResetEmail({
+      to: user.email,
+      resetUrl: `${clientUrl}/reset-password/${rawToken}`,
+    })
+  }
+
+  res.json({ message: genericMessage })
+}
+
+export const resetPassword = async (req, res) => {
+  const { password } = req.body
+  const { token } = req.params
+
+  if (!password || password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters' })
+  }
+  if (!token) {
+    return res.status(400).json({ message: 'Reset token is required' })
+  }
+
+  const user = await User.findOne({
+    resetPasswordToken: sha256(token),
+    resetPasswordExpires: { $gt: new Date() },
+  }).select('+resetPasswordToken +resetPasswordExpires')
+
+  if (!user) {
+    return res.status(400).json({ message: 'This reset link is invalid or has expired' })
+  }
+
+  user.password = password
+  user.resetPasswordToken = undefined
+  user.resetPasswordExpires = undefined
+  await user.save()
+
+  /* Force re-authentication with the new credentials. */
+  clearTokenCookie(res)
+  res.json({ message: 'Password has been reset. You can now sign in.' })
 }
