@@ -344,6 +344,31 @@ exactly the class of bug this catches.
 
 ## Testing
 
+```bash
+cd backend
+npm test          # unit + integration (114 tests)
+npm run test:unit # pure functions only, no database needed
+```
+
+Tests use the **Node built-in runner** (`node:test` + `node:assert`) rather
+than Jest. The backend is ESM (`"type": "module"`), and Jest requires a Babel
+or transform layer to test that; the built-in runner needs no configuration and
+adds no dependency.
+
+| Path | Scope | Needs a database |
+| --- | --- | --- |
+| `tests/unit/` | Pure functions: text primitives, intent parsing, BM25 ranking, env guard | No |
+| `tests/integration/` | Auth middleware, RBAC, User model, rate limiting | Yes (self-skips) |
+| `scripts/ai-coverage.mjs` | Asserts every product is findable by natural phrasings | Yes |
+| `scripts/verify-deployment.mjs` | Route parity between `server.js` and `api/index.js` | No |
+
+Integration tests use a dedicated `ecommerce_test` database — never your
+development data — and **skip themselves rather than fail** when MongoDB is
+unreachable, so `npm test` is still useful without a database. Everything runs
+in CI on every push.
+
+## E2E Testing Checklist
+
 A comprehensive E2E testing checklist covering responsiveness, functional flows, auth, API integration, and performance is available in the project documentation. Key areas:
 
 - **Responsiveness**: Mobile (<640px), tablet, desktop — layout, touch targets, states

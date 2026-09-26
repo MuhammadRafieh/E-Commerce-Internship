@@ -70,8 +70,13 @@ export class CatalogIndex {
   /**
    * Score every product against `terms`.
    * Returns an array of { product, score } sorted best-first.
+   *
+   * Input is normalised and stemmed here, mirroring how documents are indexed.
+   * Without this a caller passing a raw or capitalised word ("Headphones")
+   * got a silent empty result that is indistinguishable from "no matches".
    */
-  search(terms) {
+  search(rawTerms) {
+    const terms = (rawTerms || []).flatMap((t) => splitWords(t)).map(stem)
     if (!terms.length || !this.N) return []
 
     const scores = new Array(this.N).fill(0)

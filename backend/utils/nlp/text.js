@@ -34,6 +34,10 @@ export const normalise = (s) =>
   String(s || '')
     .toLowerCase()
     .replace(/[‘’]/g, "'")
+    /* Thousands separators must be removed before punctuation stripping,
+       otherwise "1,000" becomes "1 000" and price expressions such as
+       "between 1,000 and 5,000" silently fail to parse. */
+    .replace(/(?<=\d)[,.](?=\d)/g, '')
     .replace(/[^a-z0-9\s.+#-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -115,7 +119,7 @@ export const editDistance = (a, b, max = 2) => {
  * Fuzzy-match query terms against a vocabulary so typos still land
  * ("wireles headphons" -> wireless, headphones).
  */
-export const fuzzyMatch = (term, vocabulary, maxDistance = 2) => {
+export const fuzzyMatch = (term, vocabulary = new Set(), maxDistance = 2) => {
   if (vocabulary.has(term)) return term
   if (term.length < 4) return null
 

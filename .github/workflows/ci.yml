@@ -64,6 +64,13 @@ jobs:
           MONGO_URI: mongodb://localhost:27017/ecommerce
           JWT_SECRET: ci-only-not-a-real-secret
 
+      - name: Unit and integration tests
+        run: npm test --prefix backend
+        env:
+          MONGO_URI: mongodb://localhost:27017/ecommerce
+          JWT_SECRET: ci-only-not-a-real-secret
+          NODE_ENV: test
+
       - name: Build frontend
         run: npm run build
 

@@ -72,10 +72,14 @@ export const ATTRIBUTE_SYNONYMS = {
     'jbl', 'xiaomi', 'lenovo', 'puma', 'reebok', 'boat', 'oneplus', 'realme',
     'hp', 'asus', 'acer', 'bose', 'sennheiser', 'fitbit', 'nike air',
   ],
+  /* Distinguishing characteristics only. Words like "wireless" and
+     "bluetooth" are deliberately NOT here: as a hard AND filter they hide
+     products that match on everything else (a Bluetooth speaker with no
+     literal "wireless" in its text became unfindable). Those are ordinary
+     product descriptors and are handled by BM25, which matches loosely. */
   feature: [
-    'wireless', 'bluetooth', 'noise cancelling', 'waterproof', 'water resistant',
-    'rechargeable', 'foldable', 'portable', 'cordless', 'usb', 'fast charging',
-    'stainless steel', 'sapphire', 'handmade', 'organic',
+    'waterproof', 'water resistant', 'rechargeable', 'foldable', 'cordless',
+    'insulated', 'stain resistant', 'scratch resistant', 'handmade', 'vegan',
   ],
 }
 

@@ -32,6 +32,12 @@ const getRedis = () => {
       redis = new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL,
         token: process.env.UPSTASH_REDIS_REST_TOKEN,
+        /* Bounded retries. Without this the client retries with backoff, so
+           during an outage the limiter still "fails open" but every request
+           pays the full retry budget first — turning a dependency problem
+           into a latency problem for the whole site. */
+        retry: { retries: 1, backoff: (attempt) => Math.min(100 * 2 ** attempt, 300) },
+        timeout: 2000,
       })
     } catch (err) {
       console.error('[rate-limit] Upstash init failed, using in-memory store:', err.message)
