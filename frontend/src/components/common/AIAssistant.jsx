@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { MessageCircle, X, Send, ChevronRight, Sparkles, Trash2 } from '../ui/Icons'
+import { MessageCircle, X, Send, ChevronRight, Trash2 } from '../ui/Icons'
 import { formatCurrency } from '../../utils/formatCurrency'
 import api from '../../services/api'
 
@@ -11,11 +11,19 @@ const QUICK_ACTIONS = [
   { label: 'Electronics', msg: 'Show me electronics' },
   { label: 'Deals', msg: 'Show me current deals and discounts' },
   { label: 'In stock', msg: 'What electronics are in stock?' },
+  { label: 'Gift idea', msg: 'Gift for my dad under 2000' },
+  { label: 'What do you have?', msg: 'What do you sell?' },
 ]
 
 const GREETING = {
   role: 'assistant',
-  text: "Hi! I'm your shopping assistant. Ask me about products, prices, categories or current deals.",
+  text: [
+    "Hi! I'm your shopping assistant.",
+    '',
+    'I can help with categories ("show me electronics"), prices ("under Rs 500"), sorting ("cheapest", "best rated"), current deals, stock, or finding something by name — typos and all.',
+    '',
+    'What are you looking for?',
+  ].join('\n'),
   products: [],
 }
 
@@ -26,8 +34,7 @@ export default function AIAssistant() {
   const [messages, setMessages] = useState([GREETING])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const [source, setSource] = useState(null)
-  const [llm, setLlm] = useState(null)
+  const [lastMeta, setLastMeta] = useState(null)
   const listRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -53,23 +60,26 @@ export default function AIAssistant() {
       if (!text || sending) return
 
       setInput('')
-      /* Capture prior turns before this one is appended, so the backend
-         receives real conversation context. */
-      const priorTurns = messages
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.text }))
+
+      /* The engine refines using the last set of results, so pass the
+         previous assistant turn's products as context. */
+      const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
 
       setMessages((prev) => [...prev, { role: 'user', text, products: [] }])
       setSending(true)
 
       try {
-        const res = await api.post('/ai/chat', { message: text, history: priorTurns })
-        const { reply, products, source: src, llm: info } = res.data
-        setSource(src || null)
-        setLlm(info || null)
+        const res = await api.post('/ai/chat', {
+          message: text,
+          previous: lastAssistant?.products?.length
+            ? { products: lastAssistant.products.map((p) => ({ name: p.name })) }
+            : null,
+        })
+        const { reply, products, meta } = res.data
+        setLastMeta(meta || null)
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', text: reply, products: products || [] },
+          { role: 'assistant', text: reply, products: products || [], meta },
         ])
       } catch {
         setMessages((prev) => [
@@ -97,7 +107,7 @@ export default function AIAssistant() {
 
   const clearChat = () => {
     setMessages([GREETING])
-    setSource(null)
+    setLastMeta(null)
   }
 
   return (
@@ -123,13 +133,8 @@ export default function AIAssistant() {
               <div>
                 <p className="text-sm font-semibold flex items-center gap-1.5">
                   Shopping Assistant
-                  {source === 'llm' && <Sparkles size={13} className="text-white/80" />}
                 </p>
-                <p className="text-xs text-white/70">
-                  {source === 'llm' && llm
-                    ? `${llm.provider} · ${llm.model}`
-                    : 'Product search'}
-                </p>
+                <p className="text-xs text-white/70">Runs locally · no external service</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -166,6 +171,14 @@ export default function AIAssistant() {
                     }`}
                   >
                     {msg.text}
+                    {msg.meta?.corrected?.length > 0 && (
+                      <p className="mt-2 pt-2 border-t border-night-700 text-[11px] text-gray-500">
+                        Read{' '}
+                        {msg.meta.corrected
+                          .map((c) => `“${c.from}” as “${c.to}”`)
+                          .join(', ')}
+                      </p>
+                    )}
                   </div>
                 </div>
                 {msg.products?.length > 0 && (

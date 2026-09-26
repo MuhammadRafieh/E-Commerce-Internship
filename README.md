@@ -11,7 +11,7 @@ Full-stack e-commerce platform built with the MERN stack (MongoDB, Express, Reac
 | Database    | MongoDB (via Mongoose ODM)                      |
 | Auth        | JWT (bcryptjs + jsonwebtoken)                   |
 | Email       | Nodemailer (password reset)                     |
-| AI          | OpenAI / Gemini (optional, via REST)           |
+| AI          | Local NLP engine (BM25 + intent parsing)       |
 | Payments    | Stripe Checkout (INR currency)                  |
 | Deployment  | Vercel (serverless + static SPA)                |
 
@@ -24,7 +24,7 @@ Full-stack e-commerce platform built with the MERN stack (MongoDB, Express, Reac
 - **Checkout & Payments** — Shipping form + Stripe Checkout redirect (INR), order creation on payment success
 - **Auth** — Register / Login / Profile management, JWT with 7-day expiry, protected routes
 - **Forgot Password** — Email a single-use reset link, set a new password
-- **AI Shopping Assistant** — Natural-language product search with real catalogue grounding
+- **AI Shopping Assistant** — Local natural-language product search (BM25 + intent parsing, no external API)
 - **Admin Panel** — Full CRUD for products and categories (admin only)
 - **Responsive** — Mobile-first design, hamburger nav, touch-friendly targets, full desktop layout
 
@@ -187,29 +187,48 @@ See route files in `backend/routes/` for full endpoint listings.
 
 ### AI Assistant
 
-| Method | Endpoint      | Auth   | Description                          |
-| ------ | ------------- | ------ | ------------------------------------ |
-| POST   | `/ai/chat`    | Public | Natural-language product search      |
+| Method | Endpoint      | Auth   | Description                       |
+| ------ | ------------- | ------ | --------------------------------- |
+| POST   | `/ai/chat`    | Public | Natural-language product search   |
+| GET    | `/ai/health`  | Public | Engine status and index size      |
 
-Body: `{ message, history? }` — `history` is prior turns (`role` + `content`) for
-multi-turn context.
+Body: `{ message, previous? }` — `previous` is the last assistant turn's
+`products`, used to interpret refinements like "cheaper" or "something else".
 
-**How it stays accurate:** the assistant never invents products. Every reply is
-grounded in a catalogue lookup that runs first — the matching real products are
-retrieved from MongoDB and injected into the model's system prompt, and the
-product links shown in the chat come from that database result rather than from
-the model's text. If no key is configured, or the provider call fails, it falls
-back to a deterministic templated reply and the response reports
-`source: "rules"` instead of `"llm"`.
+**Runs entirely locally.** There is no language model and no external API — no
+key, no network call, no cost. A request is handled in four stages:
 
-Understood intents: price ranges (`under`, `between X and Y`, `above`), category
-(including synonyms such as "clothes" → `fashion`), `deals`/`discount`,
-`in stock`, and sorting by cheapest, most expensive, best rated, most reviewed,
-or newest. Category keywords are read from the `categories` collection, so
-adding a category in the admin panel needs no code change.
+1. **Understand** (`utils/nlp/understand.js`) — intent and entity extraction:
+   price ranges, category, discount, stock, sort order, and product keywords.
+   Spans already interpreted as price or intent are masked out of the text, so
+   the leftovers are genuinely just the words being searched for.
+2. **Retrieve** (`utils/nlp/engine.js`) — filter the catalogue by the hard
+   constraints (category, price, stock, discount), then rank with **BM25**
+   (`utils/nlp/bm25.js`) so a title match outranks a description match and rare
+   terms count for more.
+3. **Correct** — query terms are fuzzy-matched against the catalogue vocabulary,
+   so `wireles headphons` still finds the headphones. Corrections are reported
+   back to the UI rather than applied silently.
+4. **Respond** (`utils/nlp/respond.js`) — compose the reply from what was
+   actually found.
 
-Configure with `LLM_PROVIDER` (`openai` or `gemini`), `LLM_API_KEY`, and
-optionally `LLM_MODEL` / `LLM_BASE_URL`. The key stays server-side.
+**Why it cannot hallucinate:** there is no generative step. Every product name,
+price, discount, and rating in a reply comes from a database row, and the links
+rendered in the chat are that same query result. If nothing matches, it says so
+and widens the search explicitly rather than inventing a plausible answer.
+
+**Trade-off:** replies are templated, so phrasing is predictable and repeats
+across similar questions. It handles the shopping domain well; it is not a
+general-purpose conversational model.
+
+Understood: category (with synonyms and prefix matching, so `cloths` resolves to
+`fashion`), price (`under`, `between X and Y`, `above`), `deals`, `in stock`,
+colour/material/brand attributes, sorting by cheapest / most expensive / best
+rated / most reviewed / newest, and gift framing (`gift for my dad under 2000`,
+where the recipient is understood as context rather than a product keyword).
+
+Adding vocabulary — a category synonym, an attribute, a brand — is a single line
+in `utils/nlp/ontology.js`.
 
 ## Admin Access
 
