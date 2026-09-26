@@ -167,6 +167,8 @@ All endpoints are prefixed with `/api`.
 
 **Password reset:** tokens are 256-bit, stored only as a SHA-256 hash, expire after 1 hour, and are single-use. `forgot-password` returns an identical response whether or not the address exists, so it can't be used to discover registered emails.
 
+**Session invalidation:** every JWT carries a `ver` claim matching the user's `tokenVersion`. Changing or resetting a password increments it, which immediately retires all tokens issued beforehand — so a stolen token stops working at once instead of remaining valid for the rest of its 7-day life. Tokens issued before this field existed are treated as `ver: 0` and keep working.
+
 ### Products
 | Method | Endpoint              | Auth     | Description                |
 | ------ | --------------------- | -------- | -------------------------- |
