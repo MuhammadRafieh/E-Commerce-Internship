@@ -30,6 +30,8 @@ export default function Login() {
       navigate(from, { replace: true })
     } catch (err) {
       setError(err.response?.data?.message || 'Invalid email or password')
+      /* Never leave a rejected password sitting in the field. */
+      setPassword('')
     } finally {
       setLoading(false)
     }
@@ -62,7 +64,7 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 border border-night-700 rounded-xl text-sm bg-night-950 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
               placeholder="you@example.com"
-              autoComplete="email"
+              autoComplete="off"
             />
           </div>
 
@@ -80,7 +82,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2.5 pr-11 border border-night-700 rounded-xl text-sm bg-night-950 text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
                 placeholder="••••••••"
-                autoComplete="current-password"
+                autoComplete="new-password"
               />
               <button
                 type="button"
@@ -91,6 +93,15 @@ export default function Login() {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-primary-400 font-medium hover:text-primary-300 transition-colors"
+            >
+              Forgot password?
+            </Link>
           </div>
 
           <button
