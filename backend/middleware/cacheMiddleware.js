@@ -20,9 +20,21 @@ export function cacheProducts() {
     const originalJson = res.json.bind(res)
     res.json = function (body) {
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        redis
-          .setex(CACHE_KEYS.PRODUCTS_ALL, DEFAULT_TTL, JSON.stringify(body))
-          .catch(() => {})
+        /* Re-checked at point of use, not just at the top of the handler.
+           config/redis.js sets `redis = null` on the first connection error, so
+           a client that was alive when this request arrived can be gone by the
+           time the response is written. Dereferencing it unguarded threw a
+           TypeError here and turned a cache outage into a 500 for the whole
+           catalogue endpoint. `?.` covers the null case; the try/catch covers
+           any synchronous throw, which a trailing .catch() cannot.
+           Caching is best-effort and must never fail the response. */
+        try {
+          redis
+            ?.setex(CACHE_KEYS.PRODUCTS_ALL, DEFAULT_TTL, JSON.stringify(body))
+            ?.catch(() => {})
+        } catch {
+          /* cache unavailable — the response is still correct without it */
+        }
       }
       return originalJson(body)
     }
