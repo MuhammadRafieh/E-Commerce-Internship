@@ -72,7 +72,7 @@ test('stem: known over-stemming on -ing/-ed (characterisation)', () => {
   // does not handle a final "e" or a doubled consonant, so "running" becomes
   // "runne". This is harmless for BM25 (documents and queries are stemmed
   // identically) but it means "run" and "running" will not match each other,
-  // which costs recall. See REVIEW.md.
+  // which costs recall. See the stemmer note in the architecture review.
   assert.equal(stem('running'), 'runne')
   assert.equal(stem('hopping'), 'hoppe')
   assert.equal(stem('tried'), 'tri')
